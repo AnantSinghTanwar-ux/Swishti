@@ -39,6 +39,14 @@ export default function ReportPage() {
   const router = useRouter();
   const { t } = useTranslation();
 
+  const handleLocationPicked = useCallback((nextLocation: { lat: number; lng: number }) => {
+    setLocation(nextLocation);
+  }, []);
+
+  const handleLocationCleared = useCallback(() => {
+    setLocation(null);
+  }, []);
+
   const nearbyMatches = useMemo(() => {
     if (!location) return [];
     const thresholdMeters = duplicateThresholdMeters(severity);
@@ -201,7 +209,8 @@ export default function ReportPage() {
               {currentStep === 0 && (
                 <LocationPicker
                   location={location}
-                  setLocation={setLocation}
+                  setLocation={handleLocationPicked}
+                  onLocationCleared={handleLocationCleared}
                 />
               )}
               {currentStep === 1 && (

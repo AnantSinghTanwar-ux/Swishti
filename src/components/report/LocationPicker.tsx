@@ -13,7 +13,7 @@ const LocationMapPicker = withNoSSR(
 
 interface LocationPickerProps {
   location: { lat: number; lng: number } | null;
-  setLocation: (loc: { lat: number; lng: number } | null) => void;
+  setLocation: (loc: { lat: number; lng: number }) => void;
   onLocationSelected?: (location: { lat: number; lng: number }) => void;
   onLocationCleared?: () => void;
 }
@@ -114,7 +114,6 @@ export default function LocationPicker({ location, setLocation, onLocationSelect
           </div>
           <button
             onClick={() => {
-              setLocation(null);
               onLocationCleared?.();
               setMode("map");
             }}
