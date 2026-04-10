@@ -18,12 +18,21 @@ const pinIcon = new L.Icon({
 interface LocationMapInnerProps {
   location: { lat: number; lng: number } | null;
   setLocation: (loc: { lat: number; lng: number }) => void;
+  onLocationSelected?: (location: { lat: number; lng: number }) => void;
 }
 
-function ClickHandler({ setLocation }: { setLocation: (loc: { lat: number; lng: number }) => void }) {
+function ClickHandler({
+  setLocation,
+  onLocationSelected,
+}: {
+  setLocation: (loc: { lat: number; lng: number }) => void;
+  onLocationSelected?: (location: { lat: number; lng: number }) => void;
+}) {
   useMapEvents({
     click(e) {
-      setLocation({ lat: e.latlng.lat, lng: e.latlng.lng });
+      const nextLocation = { lat: e.latlng.lat, lng: e.latlng.lng };
+      setLocation(nextLocation);
+      onLocationSelected?.(nextLocation);
     },
   });
   return null;
@@ -39,7 +48,7 @@ function FlyToLocation({ location }: { location: { lat: number; lng: number } | 
   return null;
 }
 
-export default function LocationMapInner({ location, setLocation }: LocationMapInnerProps) {
+export default function LocationMapInner({ location, setLocation, onLocationSelected }: LocationMapInnerProps) {
   // Default center: Chennai
   const center: [number, number] = location
     ? [location.lat, location.lng]
@@ -56,7 +65,7 @@ export default function LocationMapInner({ location, setLocation }: LocationMapI
         attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
         url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
       />
-      <ClickHandler setLocation={setLocation} />
+      <ClickHandler setLocation={setLocation} onLocationSelected={onLocationSelected} />
       <FlyToLocation location={location} />
       {location && (
         <Marker position={[location.lat, location.lng]} icon={pinIcon} />

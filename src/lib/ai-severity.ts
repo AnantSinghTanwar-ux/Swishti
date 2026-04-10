@@ -7,6 +7,18 @@ type MobilenetPrediction = {
 
 type MobilenetModel = {
   classify: (imageElement: HTMLImageElement, topK?: number) => Promise<MobilenetPrediction[]>;
+  infer: (imageElement: HTMLImageElement, embedding?: boolean) => EmbeddingTensor;
+};
+
+type EmbeddingTensor = {
+  dataSync: () => ArrayLike<number>;
+  dispose: () => void;
+};
+
+export type ImageScreenResult = {
+  blocked: boolean;
+  reason?: string;
+  similarity?: number;
 };
 
 // Waste-related ImageNet class keywords
@@ -27,6 +39,7 @@ const LOW_SEVERITY_KEYWORDS = [
 ];
 
 let modelPromise: Promise<MobilenetModel | null> | null = null;
+const embeddingCache = new Map<string, Float32Array>();
 
 async function loadModel() {
   if (!modelPromise) {
@@ -35,7 +48,7 @@ async function loadModel() {
         const tf = await import('@tensorflow/tfjs');
         const mobilenet = await import('@tensorflow-models/mobilenet');
         await tf.ready();
-        return await mobilenet.load({ version: 2, alpha: 0.5 });
+        return (await mobilenet.load({ version: 2, alpha: 0.5 })) as unknown as MobilenetModel;
       } catch (e) {
         console.warn('AI Model failed to load, skipping severity suggestion:', e);
         return null;
@@ -80,6 +93,106 @@ export async function suggestSeverity(imageElement: HTMLImageElement): Promise<S
     return null;
   } catch {
     return null;
+  }
+}
+
+function cosineSimilarity(left: Float32Array, right: Float32Array): number {
+  const length = Math.min(left.length, right.length);
+  let dot = 0;
+  let leftMagnitude = 0;
+  let rightMagnitude = 0;
+
+  for (let index = 0; index < length; index += 1) {
+    const leftValue = left[index];
+    const rightValue = right[index];
+    dot += leftValue * rightValue;
+    leftMagnitude += leftValue * leftValue;
+    rightMagnitude += rightValue * rightValue;
+  }
+
+  const denominator = Math.sqrt(leftMagnitude) * Math.sqrt(rightMagnitude);
+  if (denominator === 0) return 0;
+  return dot / denominator;
+}
+
+async function loadImageElement(sourceUrl: string): Promise<HTMLImageElement | null> {
+  return await new Promise((resolve) => {
+    const image = new Image();
+    image.crossOrigin = "anonymous";
+    image.onload = () => resolve(image);
+    image.onerror = () => resolve(null);
+    image.src = sourceUrl;
+  });
+}
+
+async function getEmbedding(imageElement: HTMLImageElement): Promise<Float32Array | null> {
+  const model = await loadModel();
+  if (!model) return null;
+
+  const tensor = model.infer(imageElement, true);
+  try {
+    return Float32Array.from(tensor.dataSync());
+  } finally {
+    tensor.dispose();
+  }
+}
+
+async function getCachedEmbedding(sourceUrl: string): Promise<Float32Array | null> {
+  const cached = embeddingCache.get(sourceUrl);
+  if (cached) return cached;
+
+  const image = await loadImageElement(sourceUrl);
+  if (!image) return null;
+
+  const embedding = await getEmbedding(image);
+  if (!embedding) return null;
+
+  embeddingCache.set(sourceUrl, embedding);
+  return embedding;
+}
+
+export async function screenImageForDuplicateOrCopiedContent(
+  imageElement: HTMLImageElement,
+  referenceImageUrls: string[]
+): Promise<ImageScreenResult> {
+  try {
+    const model = await loadModel();
+    if (!model) {
+      return { blocked: false };
+    }
+
+    const targetEmbedding = await getEmbedding(imageElement);
+    if (!targetEmbedding) {
+      return { blocked: false };
+    }
+
+    let maxSimilarity = 0;
+    for (const url of referenceImageUrls) {
+      const referenceEmbedding = await getCachedEmbedding(url);
+      if (!referenceEmbedding) continue;
+
+      const similarity = cosineSimilarity(targetEmbedding, referenceEmbedding);
+      if (similarity > maxSimilarity) {
+        maxSimilarity = similarity;
+      }
+    }
+
+    // Strong duplicate / copied-image signal. This is a best-effort AI gate,
+    // not a perfect anti-internet-image detector.
+    if (maxSimilarity >= 0.965) {
+      return {
+        blocked: true,
+        similarity: maxSimilarity,
+        reason: "This image looks too similar to an existing hotspot image. Please use a different real-world photo.",
+      };
+    }
+
+    return {
+      blocked: false,
+      similarity: maxSimilarity,
+    };
+  } catch {
+    return { blocked: false };
   }
 }
 

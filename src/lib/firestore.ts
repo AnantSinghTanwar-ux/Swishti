@@ -1,4 +1,4 @@
-import { ActivityEntry, Report, Severity, Status, UserProfile } from "./types";
+import { ActivityEntry, Report, UserProfile } from "./types";
 import { generateId } from "./utils";
 import { pointsForSeverity } from "./scoring";
 

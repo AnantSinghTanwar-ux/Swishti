@@ -5,6 +5,7 @@ import { motion } from "framer-motion";
 import { Upload, ImageIcon, Loader2, Sparkles, X } from "lucide-react";
 import { Severity } from "@/lib/types";
 import { useTranslation } from "@/lib/i18n";
+import { useReportStore } from "@/lib/store";
 
 interface ImageUploadProps {
   imageUrl: string;
@@ -14,6 +15,7 @@ interface ImageUploadProps {
 }
 
 export default function ImageUpload({ imageUrl, setImageUrl, onAiSuggestion, onUploadStateChange }: ImageUploadProps) {
+  const reports = useReportStore((state) => state.reports);
   const [dragOver, setDragOver] = useState(false);
   const [analyzing, setAnalyzing] = useState(false);
   const [uploading, setUploading] = useState(false);
@@ -30,8 +32,6 @@ export default function ImageUpload({ imageUrl, setImageUrl, onAiSuggestion, onU
       const reader = new FileReader();
       reader.onload = async (e) => {
         const previewUrl = e.target?.result as string;
-        // Show preview immediately
-        setImageUrl(previewUrl);
 
         // Trigger AI analysis
         setAnalyzing(true);
@@ -44,11 +44,28 @@ export default function ImageUpload({ imageUrl, setImageUrl, onAiSuggestion, onU
             img.onerror = () => res();
           });
 
-          const { suggestSeverity } = await import("@/lib/ai-severity");
+          const { suggestSeverity, screenImageForDuplicateOrCopiedContent } = await import("@/lib/ai-severity");
+          const duplicateCheck = await screenImageForDuplicateOrCopiedContent(
+            img,
+            reports.map((report) => report.beforeImage).filter(Boolean)
+          );
+
+          if (duplicateCheck.blocked) {
+            setImageUrl("");
+            onAiSuggestion(null);
+            setUploadError(duplicateCheck.reason || "This image looks too similar to an existing report.");
+            return;
+          }
+
           const suggestion = await suggestSeverity(img);
           onAiSuggestion(suggestion);
+
+          // Show preview only after the image passes AI screening.
+          setImageUrl(previewUrl);
         } catch {
           onAiSuggestion(null);
+          setImageUrl("");
+          setUploadError("This image could not be analyzed. Please try a different photo.");
         } finally {
           setAnalyzing(false);
         }
@@ -59,7 +76,7 @@ export default function ImageUpload({ imageUrl, setImageUrl, onAiSuggestion, onU
       };
       reader.readAsDataURL(file);
     },
-    [setImageUrl, onAiSuggestion, onUploadStateChange, t]
+    [reports, setImageUrl, onAiSuggestion, onUploadStateChange]
   );
 
   const handleDrop = useCallback(

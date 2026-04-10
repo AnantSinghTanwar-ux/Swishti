@@ -14,9 +14,11 @@ const LocationMapPicker = withNoSSR(
 interface LocationPickerProps {
   location: { lat: number; lng: number } | null;
   setLocation: (loc: { lat: number; lng: number } | null) => void;
+  onLocationSelected?: (location: { lat: number; lng: number }) => void;
+  onLocationCleared?: () => void;
 }
 
-export default function LocationPicker({ location, setLocation }: LocationPickerProps) {
+export default function LocationPicker({ location, setLocation, onLocationSelected, onLocationCleared }: LocationPickerProps) {
   const [mode, setMode] = useState<"choose" | "gps" | "map">("choose");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -32,7 +34,9 @@ export default function LocationPicker({ location, setLocation }: LocationPicker
     }
     navigator.geolocation.getCurrentPosition(
       (pos) => {
-        setLocation({ lat: pos.coords.latitude, lng: pos.coords.longitude });
+        const nextLocation = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+        setLocation(nextLocation);
+        onLocationSelected?.(nextLocation);
         setLoading(false);
         setMode("gps");
       },
@@ -42,7 +46,7 @@ export default function LocationPicker({ location, setLocation }: LocationPicker
       },
       { enableHighAccuracy: true, timeout: 10000 }
     );
-  }, [setLocation]);
+  }, [setLocation, onLocationSelected]);
 
   return (
     <div className="bg-white border-[3px] border-black p-5 sm:p-8 shadow-[3px_3px_0px_#000]">
@@ -107,6 +111,7 @@ export default function LocationPicker({ location, setLocation }: LocationPicker
           <button
             onClick={() => {
               setLocation(null);
+              onLocationCleared?.();
               setMode("choose");
             }}
             className="text-xs font-black text-black border-[3px] border-black px-3 py-1.5 hover:bg-black hover:text-white transition-colors uppercase"

@@ -29,6 +29,7 @@ export default function ReportPage() {
   const [currentStep, setCurrentStep] = useState(0);
   const [direction, setDirection] = useState(1);
   const [location, setLocation] = useState<{ lat: number; lng: number } | null>(null);
+  const [locationSelected, setLocationSelected] = useState(false);
   const [beforeImage, setBeforeImage] = useState<string>("");
   const [imageUploading, setImageUploading] = useState(false);
   const [severity, setSeverity] = useState<Severity | null>(null);
@@ -52,11 +53,11 @@ export default function ReportPage() {
   ];
 
   const canProceed = useCallback(() => {
-    if (currentStep === 0) return !!location;
+    if (currentStep === 0) return locationSelected;
     if (currentStep === 1) return !!beforeImage && !imageUploading;
     if (currentStep === 2) return !!severity;
     return false;
-  }, [currentStep, location, beforeImage, severity, imageUploading]);
+  }, [currentStep, locationSelected, beforeImage, severity, imageUploading]);
 
   const next = () => {
     if (!canProceed()) return;
@@ -122,6 +123,7 @@ export default function ReportPage() {
                 setSubmitted(false);
                 setCurrentStep(0);
                 setLocation(null);
+                setLocationSelected(false);
                 setBeforeImage("");
                 setSeverity(null);
                 setAiSuggestion(null);
@@ -199,7 +201,12 @@ export default function ReportPage() {
               transition={{ duration: 0.35, ease: "easeInOut" }}
             >
               {currentStep === 0 && (
-                <LocationPicker location={location} setLocation={setLocation} />
+                <LocationPicker
+                  location={location}
+                  setLocation={setLocation}
+                  onLocationSelected={() => setLocationSelected(true)}
+                  onLocationCleared={() => setLocationSelected(false)}
+                />
               )}
               {currentStep === 1 && (
                 <ImageUpload
