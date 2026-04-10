@@ -114,10 +114,12 @@ export default function LocationPicker({ location, setLocation, onLocationSelect
           </div>
           <button
             onClick={() => {
+              setLocation(null);
               onLocationCleared?.();
               setMode("map");
             }}
-            className="text-xs font-black text-black border-[3px] border-black px-3 py-1.5 hover:bg-black hover:text-white transition-colors uppercase"
+            type="button"
+            className="relative z-20 text-xs font-black text-black border-[3px] border-black px-3 py-1.5 hover:bg-black hover:text-white transition-colors uppercase"
           >
             {t("change")}
           </button>
