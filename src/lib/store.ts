@@ -1,167 +1,154 @@
 import { create } from 'zustand';
-import { Report, ActivityEntry, Severity, Status } from './types';
-import { generateId } from './utils';
+import { Report, ActivityEntry, UserProfile } from './types';
+import type { User } from 'firebase/auth';
+import {
+  seedIfEmpty,
+  subscribeToReports,
+  subscribeToActivity,
+  subscribeToLeaderboard,
+  addReportToFirestore,
+  claimReportInFirestore,
+  initiatePendingProof,
+  submitCleanupProof,
+} from './firestore';
 
-// 5 preloaded realistic Chennai dummy reports
-const DUMMY_REPORTS: Report[] = [
-  {
-    id: 'rpt-001',
-    lat: 13.0500,
-    lng: 80.2824,
-    imageUrl: '/demo/marina-beach.jpg',
-    severity: 'high',
-    status: 'reported',
-    timestamp: Date.now() - 3600000 * 2, // 2 hours ago
-  },
-  {
-    id: 'rpt-002',
-    lat: 13.0418,
-    lng: 80.2341,
-    imageUrl: '/demo/t-nagar.jpg',
-    severity: 'medium',
-    status: 'reported',
-    timestamp: Date.now() - 3600000 * 5, // 5 hours ago
-  },
-  {
-    id: 'rpt-003',
-    lat: 13.0012,
-    lng: 80.2565,
-    imageUrl: '/demo/adyar.jpg',
-    severity: 'low',
-    status: 'in-progress',
-    timestamp: Date.now() - 3600000 * 8, // 8 hours ago
-    claimedBy: 'Volunteer A',
-  },
-  {
-    id: 'rpt-004',
-    lat: 13.0339,
-    lng: 80.2707,
-    imageUrl: '/demo/mylapore.jpg',
-    severity: 'high',
-    status: 'reported',
-    timestamp: Date.now() - 3600000 * 1, // 1 hour ago
-  },
-  {
-    id: 'rpt-005',
-    lat: 13.0850,
-    lng: 80.2101,
-    imageUrl: '/demo/anna-nagar.jpg',
-    severity: 'medium',
-    status: 'cleaned',
-    timestamp: Date.now() - 3600000 * 24, // 1 day ago
-    claimedBy: 'Volunteer B',
-    cleanedAt: Date.now() - 3600000 * 12,
-  },
-];
-
-const INITIAL_ACTIVITY: ActivityEntry[] = [
-  {
-    id: generateId(),
-    action: 'Report submitted — High severity at Marina Beach',
-    reportId: 'rpt-001',
-    timestamp: Date.now() - 3600000 * 2,
-  },
-  {
-    id: generateId(),
-    action: 'Report submitted — Medium severity at T. Nagar',
-    reportId: 'rpt-002',
-    timestamp: Date.now() - 3600000 * 5,
-  },
-  {
-    id: generateId(),
-    action: 'Report claimed for cleanup at Adyar',
-    reportId: 'rpt-003',
-    timestamp: Date.now() - 3600000 * 7,
-  },
-  {
-    id: generateId(),
-    action: 'Report submitted — High severity at Mylapore',
-    reportId: 'rpt-004',
-    timestamp: Date.now() - 3600000 * 1,
-  },
-  {
-    id: generateId(),
-    action: 'Report marked as cleaned at Anna Nagar',
-    reportId: 'rpt-005',
-    timestamp: Date.now() - 3600000 * 12,
-  },
-];
+// ─── Store Interface ────────────────────────────────────────────────────────
 
 interface ReportStore {
   reports: Report[];
   activity: ActivityEntry[];
+  leaderboard: UserProfile[];
+  user: User | null;
+  initialized: boolean;
+
+  // Proof modal
+  proofModalReportId: string | null;
+  openProofModal: (reportId: string) => void;
+  closeProofModal: () => void;
 
   // Actions
-  addReport: (report: Omit<Report, 'id' | 'status' | 'timestamp'>) => void;
-  claimReport: (id: string, volunteer?: string) => void;
-  markCleaned: (id: string) => void;
+  setUser: (user: User | null) => void;
+  setReports: (reports: Report[]) => void;
+  setActivity: (activity: ActivityEntry[]) => void;
+  setLeaderboard: (users: UserProfile[]) => void;
+  setInitialized: (v: boolean) => void;
+
+  // Firestore-backed actions
+  addReport: (report: Omit<Report, 'id' | 'status' | 'createdAt' | 'createdBy' | 'claimedBy' | 'afterImage' | 'cleanedAt'>) => Promise<string>;
+  claimReport: (id: string) => Promise<{ success: boolean; error?: string }>;
+  startCleanup: (id: string) => Promise<{ success: boolean; error?: string }>;
+  submitProof: (reportId: string, afterImageUrl: string) => Promise<{ success: boolean; error?: string }>;
 
   // Computed
   totalReported: () => number;
   inProgress: () => number;
   cleaned: () => number;
   highSeverity: () => number;
+  activeVolunteers: () => number;
+  getMostAffectedArea: () => string;
+  getTopVolunteer: () => UserProfile | null;
 }
 
+// ─── Store ──────────────────────────────────────────────────────────────────
+
 export const useReportStore = create<ReportStore>((set, get) => ({
-  reports: DUMMY_REPORTS,
-  activity: INITIAL_ACTIVITY,
+  reports: [],
+  activity: [],
+  leaderboard: [],
+  user: null,
+  initialized: false,
 
-  addReport: (partial) => {
-    const report: Report = {
-      ...partial,
-      id: `rpt-${generateId()}`,
-      status: 'reported',
-      timestamp: Date.now(),
-    };
-    const entry: ActivityEntry = {
-      id: generateId(),
-      action: `New report submitted — ${report.severity.charAt(0).toUpperCase() + report.severity.slice(1)} severity`,
-      reportId: report.id,
-      timestamp: Date.now(),
-    };
-    set((state) => ({
-      reports: [report, ...state.reports],
-      activity: [entry, ...state.activity],
-    }));
+  proofModalReportId: null,
+  openProofModal: (reportId) => set({ proofModalReportId: reportId }),
+  closeProofModal: () => set({ proofModalReportId: null }),
+
+  setUser: (user) => set({ user }),
+  setReports: (reports) => set({ reports }),
+  setActivity: (activity) => set({ activity }),
+  setLeaderboard: (leaderboard) => set({ leaderboard }),
+  setInitialized: (v) => set({ initialized: v }),
+
+  // ── Firestore-backed actions ────────────────────────────────────────────
+
+  addReport: async (partial) => {
+    const currentUser = get().user;
+    const email = currentUser?.email || 'Anonymous';
+    return addReportToFirestore(partial, email);
   },
 
-  claimReport: (id, volunteer = 'You') => {
-    set((state) => ({
-      reports: state.reports.map((r) =>
-        r.id === id ? { ...r, status: 'in-progress' as Status, claimedBy: volunteer } : r
-      ),
-      activity: [
-        {
-          id: generateId(),
-          action: `Report #${id.slice(-3)} claimed for cleanup by ${volunteer}`,
-          reportId: id,
-          timestamp: Date.now(),
-        },
-        ...state.activity,
-      ],
-    }));
+  claimReport: async (id) => {
+    const currentUser = get().user;
+    if (!currentUser?.email) return { success: false, error: "Not logged in" };
+    return claimReportInFirestore(id, currentUser.email);
   },
 
-  markCleaned: (id) => {
-    set((state) => ({
-      reports: state.reports.map((r) =>
-        r.id === id ? { ...r, status: 'cleaned' as Status, cleanedAt: Date.now() } : r
-      ),
-      activity: [
-        {
-          id: generateId(),
-          action: `Report #${id.slice(-3)} marked as cleaned ✅`,
-          reportId: id,
-          timestamp: Date.now(),
-        },
-        ...state.activity,
-      ],
-    }));
+  startCleanup: async (id) => {
+    const currentUser = get().user;
+    if (!currentUser?.email) return { success: false, error: "Not logged in" };
+    const res = await initiatePendingProof(id, currentUser.email);
+    if (res.success) {
+      get().openProofModal(id);
+    }
+    return res;
   },
+
+  submitProof: async (reportId, afterImageUrl) => {
+    const currentUser = get().user;
+    if (!currentUser?.email) return { success: false, error: "Not logged in" };
+    return submitCleanupProof(reportId, afterImageUrl, currentUser.email);
+  },
+
+  // ── Computed ────────────────────────────────────────────────────────────
 
   totalReported: () => get().reports.length,
-  inProgress: () => get().reports.filter((r) => r.status === 'in-progress').length,
+  inProgress: () => get().reports.filter((r) => r.status === 'in_progress' || r.status === 'pending_proof').length,
   cleaned: () => get().reports.filter((r) => r.status === 'cleaned').length,
   highSeverity: () => get().reports.filter((r) => r.severity === 'high' && r.status !== 'cleaned').length,
+  activeVolunteers: () => {
+    const activeClaimers = new Set(
+      get().reports
+        .filter((r) => (r.status === 'in_progress' || r.status === 'pending_proof') && r.claimedBy)
+        .map((r) => r.claimedBy)
+    );
+    return activeClaimers.size;
+  },
+  getMostAffectedArea: () => {
+    const high = get().reports.filter((r) => r.severity === 'high' && r.status !== 'cleaned');
+    if (high.length > 2) return "Marina Beach Area";
+    if (high.length > 0) return "T. Nagar Area";
+    return "None currently";
+  },
+  getTopVolunteer: () => {
+    const lb = get().leaderboard;
+    return lb.length > 0 && lb[0].totalPoints > 0 ? lb[0] : null;
+  },
 }));
+
+// ─── Initialize Real-Time Listeners ─────────────────────────────────────────
+
+let listenersInitialized = false;
+
+export function initRealtimeListeners() {
+  if (listenersInitialized) return;
+  listenersInitialized = true;
+
+  // Seed demo data if Firestore is empty
+  seedIfEmpty().then(() => {
+    // Subscribe to reports
+    subscribeToReports((reports) => {
+      useReportStore.setState({ reports });
+    });
+
+    // Subscribe to activity
+    subscribeToActivity((activity) => {
+      useReportStore.setState({ activity });
+    });
+
+    // Subscribe to leaderboard
+    subscribeToLeaderboard((leaderboard) => {
+      useReportStore.setState({ leaderboard });
+    });
+
+    useReportStore.setState({ initialized: true });
+  });
+}

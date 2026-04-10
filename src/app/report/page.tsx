@@ -1,20 +1,17 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { MapPin, Camera, AlertTriangle, Check, ArrowLeft, ArrowRight } from "lucide-react";
 import { useReportStore } from "@/lib/store";
 import { Severity } from "@/lib/types";
+import { duplicateThresholdMeters, findNearbyReports } from "@/lib/geo";
 import LocationPicker from "@/components/report/LocationPicker";
 import ImageUpload from "@/components/report/ImageUpload";
 import SeverityPicker from "@/components/report/SeverityPicker";
+import NearbyDuplicateWarning from "@/components/report/NearbyDuplicateWarning";
 import { useRouter } from "next/navigation";
-
-const steps = [
-  { label: "Location", icon: MapPin },
-  { label: "Photo", icon: Camera },
-  { label: "Severity", icon: AlertTriangle },
-];
+import { useTranslation } from "@/lib/i18n";
 
 const slideVariants = {
   enter: (direction: number) => ({
@@ -32,23 +29,45 @@ export default function ReportPage() {
   const [currentStep, setCurrentStep] = useState(0);
   const [direction, setDirection] = useState(1);
   const [location, setLocation] = useState<{ lat: number; lng: number } | null>(null);
-  const [imageUrl, setImageUrl] = useState<string>("");
+  const [beforeImage, setBeforeImage] = useState<string>("");
+  const [imageUploading, setImageUploading] = useState(false);
   const [severity, setSeverity] = useState<Severity | null>(null);
   const [aiSuggestion, setAiSuggestion] = useState<Severity | null>(null);
   const [submitted, setSubmitted] = useState(false);
 
-  const addReport = useReportStore((s) => s.addReport);
+  const { user, addReport, reports } = useReportStore();
   const router = useRouter();
+  const { t } = useTranslation();
+
+  const nearbyMatches = useMemo(() => {
+    if (!location) return [];
+    const thresholdMeters = duplicateThresholdMeters(severity);
+    return findNearbyReports({ reports, location, thresholdMeters, includeCleaned: false });
+  }, [location, reports, severity]);
+
+  const steps = [
+    { label: t("pickLocation"), icon: MapPin },
+    { label: t("uploadPhoto"), icon: Camera },
+    { label: t("selectSeverity"), icon: AlertTriangle },
+  ];
 
   const canProceed = useCallback(() => {
     if (currentStep === 0) return !!location;
-    if (currentStep === 1) return !!imageUrl;
+    if (currentStep === 1) return !!beforeImage && beforeImage.startsWith("http") && !imageUploading;
     if (currentStep === 2) return !!severity;
     return false;
-  }, [currentStep, location, imageUrl, severity]);
+  }, [currentStep, location, beforeImage, severity, imageUploading]);
 
   const next = () => {
     if (!canProceed()) return;
+    
+    // Auth check before final submission
+    if (currentStep === 2 && !user) {
+      alert(t("pleaseLogin"));
+      router.push("/login");
+      return;
+    }
+
     if (currentStep < 2) {
       setDirection(1);
       setCurrentStep((s) => s + 1);
@@ -57,7 +76,7 @@ export default function ReportPage() {
       addReport({
         lat: location!.lat,
         lng: location!.lng,
-        imageUrl,
+        beforeImage,
         severity: severity!,
       });
       setSubmitted(true);
@@ -73,47 +92,43 @@ export default function ReportPage() {
 
   if (submitted) {
     return (
-      <div className="min-h-screen gradient-bg flex items-center justify-center p-4">
+      <div className="min-h-[calc(100vh-80px)] flex items-center justify-center p-4">
         <motion.div
           initial={{ scale: 0.8, opacity: 0 }}
           animate={{ scale: 1, opacity: 1 }}
-          className="glass rounded-3xl p-8 sm:p-12 text-center max-w-md"
+          className="bg-white border-[3px] border-black shadow-[3px_3px_0px_#000] p-6 sm:p-10 text-center max-w-md w-full"
         >
           <motion.div
             initial={{ scale: 0 }}
             animate={{ scale: 1 }}
             transition={{ type: "spring", stiffness: 200, delay: 0.2 }}
-            className="w-20 h-20 rounded-full bg-emerald-500/20 text-emerald-400 flex items-center justify-center mx-auto mb-6"
+            className="w-20 h-20 bg-brutal-green border-[3px] border-black text-black flex items-center justify-center mx-auto mb-6 shadow-[3px_3px_0px_#000]"
           >
             <Check className="w-10 h-10" />
           </motion.div>
-          <h2 className="text-2xl font-bold mb-3">Report Submitted!</h2>
-          <p className="text-muted-foreground mb-8">
-            Your garbage hotspot report has been logged. Track its status on the dashboard.
+          <h2 className="text-2xl font-black mb-3 uppercase text-black">{t("reportSubmitted")}</h2>
+          <p className="text-black font-medium mb-8 text-base border-2 border-dashed border-black p-3 bg-white">
+            {t("reportSubmittedDesc")}
           </p>
-          <div className="flex flex-col sm:flex-row gap-3 justify-center">
+          <div className="flex flex-col gap-4 justify-center">
             <motion.button
-              whileHover={{ scale: 1.03 }}
-              whileTap={{ scale: 0.97 }}
               onClick={() => router.push("/dashboard")}
-              className="px-6 py-3 rounded-xl bg-gradient-to-r from-brand to-brand-dark text-white font-semibold cursor-pointer"
+              className="px-5 py-3 bg-brutal-cyan text-black brutal-button text-base font-black w-full"
             >
-              View Dashboard
+              {t("viewDashboard")}
             </motion.button>
             <motion.button
-              whileHover={{ scale: 1.03 }}
-              whileTap={{ scale: 0.97 }}
               onClick={() => {
                 setSubmitted(false);
                 setCurrentStep(0);
                 setLocation(null);
-                setImageUrl("");
+                setBeforeImage("");
                 setSeverity(null);
                 setAiSuggestion(null);
               }}
-              className="px-6 py-3 rounded-xl glass border border-border/40 font-semibold cursor-pointer"
+              className="px-5 py-3 bg-white text-black brutal-button text-base font-black w-full border-[3px]"
             >
-              Report Another
+              {t("reportAnother")}
             </motion.button>
           </div>
         </motion.div>
@@ -122,49 +137,40 @@ export default function ReportPage() {
   }
 
   return (
-    <div className="min-h-screen gradient-bg">
+    <div className="min-h-[calc(100vh-80px)]">
       <div className="max-w-2xl mx-auto px-4 py-8 sm:py-12">
         {/* Step indicator */}
-        <div className="flex items-center justify-center gap-2 mb-10">
+        <div className="flex items-center justify-center gap-2 mb-12">
           {steps.map((step, i) => {
             const Icon = step.icon;
             const isActive = i === currentStep;
             const isComplete = i < currentStep;
             return (
               <div key={i} className="flex items-center gap-2">
-                <motion.div
-                  animate={{
-                    scale: isActive ? 1.1 : 1,
-                    backgroundColor: isComplete
-                      ? "rgba(6,182,212,0.3)"
+                <div
+                  className={`flex items-center gap-2 px-4 py-2 border-[3px] border-black shadow-[3px_3px_0px_#000] transition-colors ${
+                    isComplete
+                      ? "bg-brutal-green text-black"
                       : isActive
-                      ? "rgba(6,182,212,0.15)"
-                      : "rgba(31,41,55,0.5)",
-                  }}
-                  className="flex items-center gap-2 px-4 py-2 rounded-full border transition-colors"
-                  style={{
-                    borderColor: isComplete || isActive
-                      ? "rgba(6,182,212,0.4)"
-                      : "rgba(75,85,99,0.3)",
-                  }}
+                      ? "bg-brutal-cyan text-black"
+                      : "bg-white text-neutral-400"
+                  }`}
                 >
                   {isComplete ? (
-                    <Check className="w-4 h-4 text-brand-light" />
+                    <Check className="w-4 h-4 font-bold" />
                   ) : (
-                    <Icon className={`w-4 h-4 ${isActive ? "text-brand-light" : "text-muted-foreground"}`} />
+                    <Icon className={`w-4 h-4 font-bold`} />
                   )}
                   <span
-                    className={`text-xs font-medium hidden sm:inline ${
-                      isActive || isComplete ? "text-brand-light" : "text-muted-foreground"
-                    }`}
+                    className={`text-xs font-black hidden sm:inline uppercase`}
                   >
                     {step.label}
                   </span>
-                </motion.div>
+                </div>
                 {i < steps.length - 1 && (
                   <div
-                    className={`w-8 h-px ${
-                      i < currentStep ? "bg-brand/40" : "bg-border/40"
+                    className={`w-4 h-1.5 border-y-[3px] border-black ${
+                      i < currentStep ? "bg-black" : "bg-transparent"
                     }`}
                   />
                 )}
@@ -172,6 +178,13 @@ export default function ReportPage() {
             );
           })}
         </div>
+
+        {/* Nearby duplicate warning (non-blocking) */}
+        {location && nearbyMatches.length > 0 && (
+          <div className="mb-6">
+            <NearbyDuplicateWarning matches={nearbyMatches} />
+          </div>
+        )}
 
         {/* Step Content */}
         <div className="relative overflow-hidden min-h-[400px]">
@@ -190,9 +203,10 @@ export default function ReportPage() {
               )}
               {currentStep === 1 && (
                 <ImageUpload
-                  imageUrl={imageUrl}
-                  setImageUrl={setImageUrl}
+                  imageUrl={beforeImage}
+                  setImageUrl={setBeforeImage}
                   onAiSuggestion={setAiSuggestion}
+                  onUploadStateChange={setImageUploading}
                 />
               )}
               {currentStep === 2 && (
@@ -208,26 +222,22 @@ export default function ReportPage() {
 
         {/* Navigation */}
         <div className="flex items-center justify-between mt-8">
-          <motion.button
-            whileHover={{ scale: 1.03 }}
-            whileTap={{ scale: 0.97 }}
+          <button
             onClick={prev}
             disabled={currentStep === 0}
-            className="flex items-center gap-2 px-5 py-2.5 rounded-xl glass border border-border/40 text-sm font-medium disabled:opacity-30 disabled:pointer-events-none cursor-pointer"
+            className="flex items-center gap-2 px-5 py-3 bg-white text-black brutal-button disabled:opacity-30 disabled:pointer-events-none text-base border-[3px]"
           >
-            <ArrowLeft className="w-4 h-4" />
-            Back
-          </motion.button>
-          <motion.button
-            whileHover={canProceed() ? { scale: 1.03, boxShadow: "0 0 30px rgba(6,182,212,0.25)" } : {}}
-            whileTap={canProceed() ? { scale: 0.97 } : {}}
+            <ArrowLeft className="w-4 h-4 font-bold" />
+            {t("back")}
+          </button>
+          <button
             onClick={next}
             disabled={!canProceed()}
-            className="flex items-center gap-2 px-6 py-2.5 rounded-xl bg-gradient-to-r from-brand to-brand-dark text-white text-sm font-semibold disabled:opacity-30 disabled:pointer-events-none shadow-lg shadow-brand/20 cursor-pointer"
+            className="flex items-center gap-2 px-6 py-3 bg-brutal-green text-black brutal-button disabled:opacity-30 disabled:pointer-events-none text-base border-[3px]"
           >
-            {currentStep === 2 ? "Submit Report" : "Continue"}
-            {currentStep === 2 ? <Check className="w-4 h-4" /> : <ArrowRight className="w-4 h-4" />}
-          </motion.button>
+            {currentStep === 2 ? t("submitReport") : t("continue")}
+            {currentStep === 2 ? <Check className="w-4 h-4 font-bold" /> : <ArrowRight className="w-4 h-4 font-bold" />}
+          </button>
         </div>
       </div>
     </div>

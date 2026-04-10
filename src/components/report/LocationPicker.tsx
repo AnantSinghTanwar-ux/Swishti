@@ -3,8 +3,8 @@
 import { useState, useCallback } from "react";
 import { motion } from "framer-motion";
 import { Navigation, MousePointerClick, MapPin, Loader2 } from "lucide-react";
-import { GlassCard } from "@/components/GlassCard";
 import { withNoSSR } from "@/components/MapWrapper";
+import { useTranslation } from "@/lib/i18n";
 
 const LocationMapPicker = withNoSSR(
   () => import("@/components/report/LocationMapInner"),
@@ -13,13 +13,14 @@ const LocationMapPicker = withNoSSR(
 
 interface LocationPickerProps {
   location: { lat: number; lng: number } | null;
-  setLocation: (loc: { lat: number; lng: number }) => void;
+  setLocation: (loc: { lat: number; lng: number } | null) => void;
 }
 
 export default function LocationPicker({ location, setLocation }: LocationPickerProps) {
   const [mode, setMode] = useState<"choose" | "gps" | "map">("choose");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const { t } = useTranslation();
 
   const handleGPS = useCallback(() => {
     setLoading(true);
@@ -44,28 +45,28 @@ export default function LocationPicker({ location, setLocation }: LocationPicker
   }, [setLocation]);
 
   return (
-    <div>
-      <h2 className="text-2xl font-bold mb-2">Pick Location</h2>
-      <p className="text-muted-foreground text-sm mb-6">
-        Use your current GPS location or tap on the map to drop a pin.
+    <div className="bg-white border-[3px] border-black p-5 sm:p-8 shadow-[3px_3px_0px_#000]">
+      <h2 className="text-2xl font-black mb-2 uppercase text-black">{t("pickLocation")}</h2>
+      <p className="text-black font-bold text-xs mb-6 bg-brutal-cyan inline-block px-2 py-1 border-[3px] border-black">
+        {t("pickLocationDesc")}
       </p>
 
       {mode === "choose" && !location && (
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <GlassCard onClick={handleGPS} className="p-8 text-center" glowColor="glow-green">
+          <button onClick={handleGPS} className="p-6 text-center bg-brutal-yellow border-[3px] border-black shadow-[3px_3px_0px_#000] hover:translate-x-1 hover:translate-y-1 hover:shadow-none transition-all flex flex-col items-center justify-center">
             {loading ? (
-              <Loader2 className="w-10 h-10 mx-auto mb-3 text-brand-light animate-spin" />
+              <Loader2 className="w-10 h-10 mx-auto mb-3 text-black animate-spin" />
             ) : (
-              <Navigation className="w-10 h-10 mx-auto mb-3 text-brand-light" />
+              <Navigation className="w-10 h-10 mx-auto mb-3 text-black" />
             )}
-            <h3 className="font-semibold mb-1">Use My Location</h3>
-            <p className="text-xs text-muted-foreground">Auto-detect via GPS</p>
-          </GlassCard>
-          <GlassCard onClick={() => setMode("map")} className="p-8 text-center" glowColor="glow-orange">
-            <MousePointerClick className="w-10 h-10 mx-auto mb-3 text-amber-400" />
-            <h3 className="font-semibold mb-1">Pick on Map</h3>
-            <p className="text-xs text-muted-foreground">Click to drop a pin</p>
-          </GlassCard>
+            <h3 className="font-black text-lg mb-1 uppercase text-black">{t("useMyLocation")}</h3>
+            <p className="text-xs font-bold text-black uppercase">{t("autoDetectGPS")}</p>
+          </button>
+          <button onClick={() => setMode("map")} className="p-6 text-center bg-brutal-cyan border-[3px] border-black shadow-[3px_3px_0px_#000] hover:translate-x-1 hover:translate-y-1 hover:shadow-none transition-all flex flex-col items-center justify-center">
+            <MousePointerClick className="w-10 h-10 mx-auto mb-3 text-black" />
+            <h3 className="font-black text-lg mb-1 uppercase text-black">{t("pickOnMap")}</h3>
+            <p className="text-xs font-bold text-black uppercase">{t("clickToDropPin")}</p>
+          </button>
         </div>
       )}
 
@@ -73,9 +74,9 @@ export default function LocationPicker({ location, setLocation }: LocationPicker
         <motion.p
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
-          className="text-red-400 text-sm mt-4 p-3 rounded-xl bg-red-500/10 border border-red-500/20"
+          className="text-black font-bold text-xs mt-4 p-3 bg-brutal-red border-[3px] border-black shadow-[3px_3px_0px_#000] uppercase"
         >
-          {error}
+          ERROR: {error}
         </motion.p>
       )}
 
@@ -85,7 +86,7 @@ export default function LocationPicker({ location, setLocation }: LocationPicker
           animate={{ opacity: 1, y: 0 }}
           className="mt-4"
         >
-          <div className="h-[350px] rounded-2xl overflow-hidden border border-border/30">
+          <div className="h-[300px] border-[3px] border-black bg-white z-0 relative shadow-[3px_3px_0px_#000]">
             <LocationMapPicker location={location} setLocation={setLocation} />
           </div>
         </motion.div>
@@ -95,22 +96,22 @@ export default function LocationPicker({ location, setLocation }: LocationPicker
         <motion.div
           initial={{ opacity: 0, scale: 0.95 }}
           animate={{ opacity: 1, scale: 1 }}
-          className="mt-6 flex items-center justify-center gap-2"
+          className="mt-6 flex flex-col sm:flex-row items-center justify-center gap-3"
         >
-          <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full glass border border-brand/20 text-sm">
-            <MapPin className="w-4 h-4 text-brand-light" />
-            <span className="text-brand-light font-medium">
+          <div className="inline-flex items-center gap-2 px-4 py-2 border-[3px] border-black bg-brutal-green shadow-[3px_3px_0px_#000] text-sm font-black text-black">
+            <MapPin className="w-4 h-4 text-black" />
+            <span>
               {location.lat.toFixed(4)}, {location.lng.toFixed(4)}
             </span>
           </div>
           <button
             onClick={() => {
-              setLocation(null as any);
+              setLocation(null);
               setMode("choose");
             }}
-            className="text-xs text-muted-foreground hover:text-foreground underline cursor-pointer"
+            className="text-xs font-black text-black border-[3px] border-black px-3 py-1.5 hover:bg-black hover:text-white transition-colors uppercase"
           >
-            Change
+            {t("change")}
           </button>
         </motion.div>
       )}

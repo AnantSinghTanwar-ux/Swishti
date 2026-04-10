@@ -1,7 +1,9 @@
 import type { Metadata } from "next";
 import { Inter } from "next/font/google";
+import { cookies } from "next/headers";
 import "./globals.css";
 import { Navbar } from "@/components/Navbar";
+import { LanguageProvider } from "@/lib/i18n";
 
 const inter = Inter({
   subsets: ["latin"],
@@ -9,19 +11,29 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: "CleanX — Smart Garbage Hotspot Reporter",
-  description:
-    "Report, track, and clean garbage hotspots in your city. AI-powered severity detection, real-time volunteer coordination, and smart city dashboard.",
+  title: "Swishti | Civic Tech Platform",
+  description: "Report garbage hotspots and coordinate volunteer cleanups.",
   keywords: ["garbage", "waste management", "civic tech", "smart city", "cleanup", "volunteer"],
 };
 
-export default function RootLayout({
+import { AuthSync } from "@/components/AuthSync";
+import ProofModal from "@/components/ProofModal";
+
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const cookieStore = await cookies();
+  const cookieLang = cookieStore.get("swishti-lang")?.value;
+  const initialLang = cookieLang === "ta" ? "ta" : cookieLang === "hi" ? "hi" : "en";
+
   return (
-    <html lang="en" className={`${inter.variable} h-full antialiased`}>
+    <html
+      lang={initialLang}
+      suppressHydrationWarning
+      className={`${inter.variable} h-full antialiased`}
+    >
       <head>
         <link
           rel="stylesheet"
@@ -30,9 +42,13 @@ export default function RootLayout({
           crossOrigin=""
         />
       </head>
-      <body className="min-h-full flex flex-col font-sans">
-        <Navbar />
-        <main className="flex-1">{children}</main>
+      <body className="min-h-full flex flex-col font-sans brutal-bg">
+        <LanguageProvider initialLang={initialLang}>
+          <AuthSync />
+          <Navbar />
+          <main className="flex-1">{children}</main>
+          <ProofModal />
+        </LanguageProvider>
       </body>
     </html>
   );

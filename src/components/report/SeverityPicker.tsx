@@ -4,6 +4,7 @@ import { motion } from "framer-motion";
 import { Sparkles, Leaf, AlertTriangle, Flame } from "lucide-react";
 import { Severity } from "@/lib/types";
 import { cn } from "@/lib/utils";
+import { useTranslation } from "@/lib/i18n";
 
 interface SeverityPickerProps {
   severity: Severity | null;
@@ -13,8 +14,8 @@ interface SeverityPickerProps {
 
 const severityOptions: {
   value: Severity;
-  label: string;
-  desc: string;
+  labelKey: "severityLow" | "severityMedium" | "severityHigh";
+  descKey: "severityLowDesc" | "severityMediumDesc" | "severityHighDesc";
   icon: typeof Leaf;
   gradient: string;
   border: string;
@@ -23,8 +24,8 @@ const severityOptions: {
 }[] = [
   {
     value: "low",
-    label: "Low",
-    desc: "Minor litter — a few items scattered",
+    labelKey: "severityLow",
+    descKey: "severityLowDesc",
     icon: Leaf,
     gradient: "from-emerald-500/20 to-emerald-600/10",
     border: "border-emerald-500/30",
@@ -33,8 +34,8 @@ const severityOptions: {
   },
   {
     value: "medium",
-    label: "Medium",
-    desc: "Noticeable waste pile — needs attention",
+    labelKey: "severityMedium",
+    descKey: "severityMediumDesc",
     icon: AlertTriangle,
     gradient: "from-orange-500/20 to-amber-600/10",
     border: "border-orange-500/30",
@@ -43,8 +44,8 @@ const severityOptions: {
   },
   {
     value: "high",
-    label: "High",
-    desc: "Major dumping site — urgent cleanup",
+    labelKey: "severityHigh",
+    descKey: "severityHighDesc",
     icon: Flame,
     gradient: "from-red-500/20 to-rose-600/10",
     border: "border-red-500/30",
@@ -54,15 +55,23 @@ const severityOptions: {
 ];
 
 export default function SeverityPicker({ severity, setSeverity, aiSuggestion }: SeverityPickerProps) {
+  const { t } = useTranslation();
+
+  const severityLabel = (s: Severity) => {
+    if (s === "low") return t("severityLow");
+    if (s === "medium") return t("severityMedium");
+    return t("severityHigh");
+  };
+
   return (
-    <div>
-      <h2 className="text-2xl font-bold mb-2">Select Severity</h2>
-      <p className="text-muted-foreground text-sm mb-6">
-        How serious is this garbage hotspot?
+    <div className="bg-white border-[3px] border-black p-5 sm:p-8 shadow-[3px_3px_0px_#000]">
+      <h2 className="text-2xl font-black mb-2 uppercase text-black">{t("selectSeverity")}</h2>
+      <p className="text-black font-bold text-xs mb-6 bg-brutal-cyan inline-block px-2 py-1 border-[3px] border-black">
+        {t("howSerious")}
         {aiSuggestion && (
-          <span className="ml-2 inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-brand/10 border border-brand/20 text-brand-light text-xs">
-            <Sparkles className="w-3 h-3" />
-            AI suggests: {aiSuggestion}
+          <span className="ml-2 inline-flex items-center gap-1 px-2 py-0.5 border-[2px] border-black bg-brutal-yellow text-black text-[10px]">
+            <Sparkles className="w-3 h-3 text-black" />
+            {t("aiSuggests")}: {severityLabel(aiSuggestion)}
           </span>
         )}
       </p>
@@ -74,57 +83,59 @@ export default function SeverityPicker({ severity, setSeverity, aiSuggestion }: 
           const isAiSuggested = aiSuggestion === opt.value && !severity;
 
           return (
-            <motion.button
+            <button
               key={opt.value}
-              whileHover={{ scale: 1.02, y: -2 }}
-              whileTap={{ scale: 0.98 }}
               onClick={() => setSeverity(opt.value)}
               className={cn(
-                "relative w-full text-left p-6 rounded-2xl glass border transition-all duration-300 cursor-pointer",
+                "relative w-full text-left p-4 sm:p-5 border-[3px] transition-all duration-200 cursor-pointer text-black hover:translate-x-0.5 hover:translate-y-0.5",
                 isSelected
-                  ? `${opt.border} bg-gradient-to-r ${opt.gradient} shadow-lg`
+                  ? `border-black shadow-none translate-x-1 translate-y-1 ${
+                      opt.value === "low"
+                        ? "bg-brutal-green"
+                        : opt.value === "medium"
+                          ? "bg-brutal-yellow"
+                          : "bg-brutal-red"
+                    }`
                   : isAiSuggested
-                  ? `${opt.border} bg-gradient-to-r ${opt.gradient} opacity-80`
-                  : "border-border/30 hover:border-border/50",
-                opt.glow
+                  ? `border-black shadow-[3px_3px_0px_#000] bg-white opacity-90 border-dashed`
+                  : "border-black shadow-[3px_3px_0px_#000] bg-white"
               )}
             >
               <div className="flex items-center gap-4">
                 <div
                   className={cn(
-                    "w-14 h-14 rounded-xl flex items-center justify-center shrink-0 transition-colors",
-                    isSelected ? `bg-gradient-to-br ${opt.gradient}` : "bg-muted/30"
+                    "w-12 h-12 flex items-center justify-center shrink-0 border-[3px] border-black bg-white shadow-[3px_3px_0px_#000]"
                   )}
                 >
-                  <Icon className={cn("w-7 h-7", isSelected ? opt.textColor : "text-muted-foreground")} />
+                  <Icon className="w-6 h-6 text-black" />
                 </div>
                 <div className="flex-1">
                   <div className="flex items-center gap-2">
-                    <h3 className={cn("text-lg font-semibold", isSelected && opt.textColor)}>
-                      {opt.label}
+                    <h3 className="text-base font-black uppercase text-black">
+                      {t(opt.labelKey)}
                     </h3>
                     {isAiSuggested && !isSelected && (
-                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-brand/10 border border-brand/20 text-brand-light text-[10px] font-medium animate-glow-pulse">
-                        <Sparkles className="w-2.5 h-2.5" />
-                        AI Suggested
+                      <span className="inline-flex items-center gap-1 px-1.5 py-0.5 border-2 border-black bg-brutal-yellow text-black text-[10px] font-black uppercase shadow-[2px_2px_0px_#000]">
+                        <Sparkles className="w-3 h-3 text-black" />
+                        {t("aiSuggested")}
                       </span>
                     )}
                   </div>
-                  <p className="text-sm text-muted-foreground mt-0.5">{opt.desc}</p>
+                  <p className="text-xs font-bold text-black/80 mt-1">{t(opt.descKey)}</p>
                 </div>
                 {isSelected && (
                   <motion.div
                     initial={{ scale: 0 }}
                     animate={{ scale: 1 }}
-                    className={cn("w-6 h-6 rounded-full flex items-center justify-center shrink-0", opt.textColor)}
+                    className="w-6 h-6 border-[3px] border-black bg-white flex items-center justify-center shrink-0 shadow-[2px_2px_0px_#000]"
                   >
-                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                    <svg className="w-4 h-4 text-black" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={4}>
                       <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
                     </svg>
                   </motion.div>
                 )}
               </div>
-            </motion.button>
+            </button>
           );
         })}
       </div>
