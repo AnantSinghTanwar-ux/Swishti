@@ -4,7 +4,6 @@ import { useState, useRef, useCallback } from "react";
 import { motion } from "framer-motion";
 import { Upload, ImageIcon, Loader2, Sparkles, X } from "lucide-react";
 import { Severity } from "@/lib/types";
-import { uploadImageToStorage } from "@/lib/storage";
 import { useTranslation } from "@/lib/i18n";
 
 interface ImageUploadProps {
@@ -22,8 +21,6 @@ export default function ImageUpload({ imageUrl, setImageUrl, onAiSuggestion, onU
   const fileInputRef = useRef<HTMLInputElement>(null);
   const imgRef = useRef<HTMLImageElement>(null);
   const { t } = useTranslation();
-
-  const hasRemoteUrl = imageUrl.startsWith("http");
 
   const processFile = useCallback(
     (file: File) => {
@@ -56,23 +53,9 @@ export default function ImageUpload({ imageUrl, setImageUrl, onAiSuggestion, onU
           setAnalyzing(false);
         }
 
-        // Upload to Firebase Storage so other clients can see it.
-        setUploading(true);
-        onUploadStateChange?.(true);
-        try {
-          const downloadUrl = await uploadImageToStorage({
-            file,
-            folder: "reports/before",
-          });
-          setImageUrl(downloadUrl);
-          setUploadError("");
-        } catch {
-          // Keep preview URL so user can retry.
-          setUploadError(t("uploadFailed"));
-        } finally {
-          setUploading(false);
-          onUploadStateChange?.(false);
-        }
+        // Keep the local preview as the final image in the dummy-data version.
+        setUploading(false);
+        onUploadStateChange?.(false);
       };
       reader.readAsDataURL(file);
     },
@@ -187,7 +170,7 @@ export default function ImageUpload({ imageUrl, setImageUrl, onAiSuggestion, onU
             </motion.div>
           )}
 
-          {!analyzing && !uploading && hasRemoteUrl && (
+          {!analyzing && !uploading && imageUrl && (
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}

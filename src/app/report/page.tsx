@@ -53,7 +53,7 @@ export default function ReportPage() {
 
   const canProceed = useCallback(() => {
     if (currentStep === 0) return !!location;
-    if (currentStep === 1) return !!beforeImage && beforeImage.startsWith("http") && !imageUploading;
+    if (currentStep === 1) return !!beforeImage && !imageUploading;
     if (currentStep === 2) return !!severity;
     return false;
   }, [currentStep, location, beforeImage, severity, imageUploading]);

@@ -5,7 +5,6 @@ import { motion, AnimatePresence } from "framer-motion";
 import { X, Loader2, Camera, Check } from "lucide-react";
 import { useReportStore } from "@/lib/store";
 import { useTranslation } from "@/lib/i18n";
-import { uploadImageToStorage } from "@/lib/storage";
 
 export default function ProofModal() {
   const { proofModalReportId, closeProofModal, reports, submitProof } = useReportStore();
@@ -38,12 +37,7 @@ export default function ProofModal() {
     if (!afterFile) return;
     setSubmitting(true);
     try {
-      const downloadUrl = await uploadImageToStorage({
-        file: afterFile,
-        folder: `reports/${report.id}/after`,
-      });
-
-      const result = await submitProof(report.id, downloadUrl);
+      const result = await submitProof(report.id, afterPreviewUrl);
       if (result.success) {
         setAfterFile(null);
         setAfterPreviewUrl("");

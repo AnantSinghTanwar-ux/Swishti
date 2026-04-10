@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { Report, ActivityEntry, UserProfile } from './types';
-import type { User } from 'firebase/auth';
+import type { User } from './auth';
 import {
   seedIfEmpty,
   subscribeToReports,
@@ -33,7 +33,7 @@ interface ReportStore {
   setLeaderboard: (users: UserProfile[]) => void;
   setInitialized: (v: boolean) => void;
 
-  // Firestore-backed actions
+  // Local dummy-data actions
   addReport: (report: Omit<Report, 'id' | 'status' | 'createdAt' | 'createdBy' | 'claimedBy' | 'afterImage' | 'cleanedAt'>) => Promise<string>;
   claimReport: (id: string) => Promise<{ success: boolean; error?: string }>;
   startCleanup: (id: string) => Promise<{ success: boolean; error?: string }>;
@@ -68,7 +68,7 @@ export const useReportStore = create<ReportStore>((set, get) => ({
   setLeaderboard: (leaderboard) => set({ leaderboard }),
   setInitialized: (v) => set({ initialized: v }),
 
-  // ── Firestore-backed actions ────────────────────────────────────────────
+  // ── Local dummy-data actions ────────────────────────────────────────────
 
   addReport: async (partial) => {
     const currentUser = get().user;
@@ -132,7 +132,7 @@ export function initRealtimeListeners() {
   if (listenersInitialized) return;
   listenersInitialized = true;
 
-  // Seed demo data if Firestore is empty
+  // Seed demo data on first load
   seedIfEmpty().then(() => {
     // Subscribe to reports
     subscribeToReports((reports) => {
