@@ -91,7 +91,11 @@ export default function LocationPicker({ location, setLocation, onLocationSelect
           className="mt-4"
         >
           <div className="h-[300px] border-[3px] border-black bg-white z-0 relative shadow-[3px_3px_0px_#000]">
-            <LocationMapPicker location={location} setLocation={setLocation} />
+            <LocationMapPicker
+              location={location}
+              setLocation={setLocation}
+              onLocationSelected={onLocationSelected}
+            />
           </div>
         </motion.div>
       )}
@@ -110,9 +114,8 @@ export default function LocationPicker({ location, setLocation, onLocationSelect
           </div>
           <button
             onClick={() => {
-              setLocation(null);
               onLocationCleared?.();
-              setMode("choose");
+              setMode("map");
             }}
             className="text-xs font-black text-black border-[3px] border-black px-3 py-1.5 hover:bg-black hover:text-white transition-colors uppercase"
           >
